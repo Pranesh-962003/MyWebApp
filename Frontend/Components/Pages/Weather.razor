@@ -1,0 +1,153 @@
+﻿@page "/weather"
+@using Frontend.Services
+@using Frontend.Models
+@inject WeatherForeCast WeatherService
+@inject HttpClient Http
+@inject ISnackbar Snackbar
+@inject UserSessionService Session
+@rendermode InteractiveServer
+@using Newtonsoft.Json;
+@using MudBlazor
+
+<MudLayout>
+    <NavBar/>
+    <MudMainContent>
+
+        <MudTextField @bind-Value="cityName"
+        Label="Enter City"
+        Variant="Variant.Outlined"
+        Adornment="Adornment.End"
+        AdornmentIcon="@Icons.Material.Filled.Search"
+        Immediate="true" />
+
+        <MudButton OnClick="SearchCity"
+        Color="Color.Primary"
+        Class="mt-2">
+            Search
+        </MudButton>
+
+        @if (forecast != null)
+        {
+            <MudCard Class="mt-4 p-4">
+                <MudCardContent>
+                    <MudText Typo="Typo.h5">@forecast.City.Name</MudText>
+                    <MudDivider Class="my-2" />
+
+                    @if (forecastLabels.Length == 5 && forecastTemps.Any())
+                    {
+                        <MudChart ChartType="ChartType.Line"
+                        ChartSeries="forecastTemps"
+                        Labels="forecastLabels"
+                        Width="100%"
+                        Height="300px" />
+                    }
+                    else
+                    {
+                        <MudProgressCircular Indeterminate="true" Color="Color.Primary" />
+                    }
+
+                    <MudButton Color="Color.Secondary"
+                    OnClick="NotifyMe"
+                    Class="mt-3">
+                        Notify Me
+                    </MudButton>
+                </MudCardContent>
+            </MudCard>
+        }
+
+    </MudMainContent>
+</MudLayout>
+
+@code {
+    private string cityName = "";
+    private WeatherForeCastData? forecast;
+    private List<ForcastEntity> forecastData = new();
+    private string[] forecastLabels = Array.Empty<string>();
+    private List<ChartSeries> forecastTemps = new();
+    private bool availabe = false;
+
+    private async Task SearchCity()
+    {
+        try
+        {
+
+            forecast = await WeatherService.Get5DayForecastAsync(cityName);
+
+            var noonForecasts = forecast.List
+                .Where(f => f.Dt.Hour == 12)
+                .Take(5)
+                .ToList();
+
+            forecastLabels = noonForecasts
+                .Select(f => f.Dt.ToString("ddd")) // e.g., Mon, Tue
+                .ToArray();
+
+            var tempValues = noonForecasts
+                .Select(f => Convert.ToDouble(f.Main.Temp)) // float to double
+                .ToArray();
+
+            forecastTemps = new List<ChartSeries>
+            {
+                new ChartSeries
+                {
+                    Name = "Temperature (°C)",
+                    Data = tempValues
+                }
+            };
+        }
+        catch
+        {
+            Snackbar.Add("City not found or API error.", Severity.Error);
+        }
+    }
+
+    private async Task NotifyMe()
+    {
+        var entries = forecast?.List
+            .Where(f => f.Dt.Hour == 12)
+            .Take(5)
+            .Select(f => new ForcastEntity
+                {
+                    CityName = forecast.City.Name,
+                    Date = f.Dt,
+                    Summary = f.Weather[0].Main,
+                    Temperature = f.Main.Temp
+                }).ToList();
+
+        Http.DefaultRequestHeaders.Authorization =
+            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", Session.AccessToken);
+
+        var result = await Http.PostAsJsonAsync("/api/forecast/forecast", entries);
+
+        if (result.IsSuccessStatusCode)
+        {
+            Snackbar.Add("Saved to backend MongoDB!", Severity.Success);
+        }
+
+        await getData();
+    }
+
+    private async Task<List<ForcastEntity>> getData()
+    {
+        Http.DefaultRequestHeaders.Authorization =
+            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", Session.AccessToken);
+
+        var storedData = await Http.GetAsync("/api/forecast/getdata");
+
+        if (storedData.IsSuccessStatusCode)
+        {
+            var data = await storedData.Content.ReadFromJsonAsync<List<ForcastEntity>>() ?? new List<ForcastEntity>();
+
+            Console.WriteLine($"Fetched Data: {JsonConvert.SerializeObject(data)}");
+            availabe = true;
+            return data;
+        }
+        else
+        {
+
+            Console.WriteLine("Failed to fetch data.");
+            return new List<ForcastEntity>();
+        }
+
+    }
+}
