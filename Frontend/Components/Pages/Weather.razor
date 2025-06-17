@@ -30,7 +30,7 @@
         {
             <MudCard Class="mt-4 p-4">
                 <MudCardContent>
-                    <MudText Typo="Typo.h5">@forecast.City.Name</MudText>
+                    <MudText Typo="Typo.h5">@forecast?.City?.Name</MudText>
                     <MudDivider Class="my-2" />
 
                     @if (forecastLabels.Length == 5 && forecastTemps.Any())
@@ -64,42 +64,50 @@
     private List<ForcastEntity> forecastData = new();
     private string[] forecastLabels = Array.Empty<string>();
     private List<ChartSeries> forecastTemps = new();
-    private bool availabe = false;
-
-    private async Task SearchCity()
+ 
+private async Task SearchCity()
+{
+    try
     {
-        try
+        forecast = await WeatherService.Get5DayForecastAsync(cityName);
+
+        var noonForecasts = forecast?.List
+            .Where(f => f.Dt.Hour == 12)
+            .Take(5)
+            .ToList();
+
+        if (noonForecasts == null || !noonForecasts.Any())
         {
+            Snackbar.Add("No forecast data available.", Severity.Warning);
+            forecastLabels = Array.Empty<string>();
+            forecastTemps = new();
+            return;
+        }
 
-            forecast = await WeatherService.Get5DayForecastAsync(cityName);
+        forecastLabels = noonForecasts
+            .Select(f => f.Dt.ToString("ddd")) // e.g., Mon, Tue
+            .ToArray();
 
-            var noonForecasts = forecast.List
-                .Where(f => f.Dt.Hour == 12)
-                .Take(5)
-                .ToList();
+        var tempValues = noonForecasts
+            .Select(f => Convert.ToDouble(f.Main.Temp))
+            .ToArray();
 
-            forecastLabels = noonForecasts
-                .Select(f => f.Dt.ToString("ddd")) // e.g., Mon, Tue
-                .ToArray();
-
-            var tempValues = noonForecasts
-                .Select(f => Convert.ToDouble(f.Main.Temp)) // float to double
-                .ToArray();
-
-            forecastTemps = new List<ChartSeries>
+        forecastTemps = new List<ChartSeries>
+        {
+            new ChartSeries
             {
-                new ChartSeries
-                {
-                    Name = "Temperature (°C)",
-                    Data = tempValues
-                }
-            };
-        }
-        catch
-        {
-            Snackbar.Add("City not found or API error.", Severity.Error);
-        }
+                Name = "Temperature (°C)",
+                Data = tempValues
+            }
+        };
     }
+    catch
+    {
+        Snackbar.Add("City not found or API error.", Severity.Error);
+        forecastLabels = Array.Empty<string>();
+        forecastTemps = new();
+    }
+}
 
     private async Task NotifyMe()
     {
@@ -139,7 +147,7 @@
             var data = await storedData.Content.ReadFromJsonAsync<List<ForcastEntity>>() ?? new List<ForcastEntity>();
 
             Console.WriteLine($"Fetched Data: {JsonConvert.SerializeObject(data)}");
-            availabe = true;
+            
             return data;
         }
         else
