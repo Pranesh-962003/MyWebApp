@@ -12,7 +12,7 @@ builder.Services.AddScoped<FavouriteCityAddService>();
 builder.Services.AddSingleton<SignalRService>();
 builder.Services.AddScoped<WeatherForeCast>();
 builder.Services.AddSingleton<UserSessionService>();
-builder.Services.AddScoped(sp => new HttpClient { BaseAddress = new Uri("https://localhost:7224/") });
+builder.Services.AddScoped(sp => new HttpClient { BaseAddress = new Uri("https://mywebapp-2.onrender.com/") });
 // Add services to the container.
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
