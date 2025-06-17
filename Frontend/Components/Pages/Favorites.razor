@@ -64,7 +64,7 @@
 
 		try
 		{
-			var request = new HttpRequestMessage(HttpMethod.Get, "https://localhost:7224/api/favoriteCity/list");
+			var request = new HttpRequestMessage(HttpMethod.Get, $"{ApiConstants.BaseUrl}/favoriteCity/list");
 			request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", Session.AccessToken);
 			var response = await Http.SendAsync(request);
 

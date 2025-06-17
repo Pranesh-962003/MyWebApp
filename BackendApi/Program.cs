@@ -37,11 +37,12 @@ builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>
     {
-        policy.AllowAnyHeader()
+        policy.AllowAnyOrigin()
               .AllowAnyMethod()
-              .WithOrigins("http://localhost:3000"); // Adjust for security, e.g., React app's URL
+              .AllowAnyHeader();
     });
 });
+
 
 // JWT Authentication setup for Supabase
 var supabaseJwtSecret = "GKQ7EuoBylI2MDpwFS3zmROZeWjwLZ0f+GSXu/ZO6NyisdakFDAWF94NruvLmVpcqUye+t83QcYVnpdZDaJ4DA==";

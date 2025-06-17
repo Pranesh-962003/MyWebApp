@@ -23,7 +23,7 @@ namespace Frontend.Services
             _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
             _httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
 
-            var responce = await _httpClient.PostAsJsonAsync("https://localhost:7224/api/favoriteCity/add", request);
+            var responce = await _httpClient.PostAsJsonAsync($"{ApiConstants.BaseUrl}/favoriteCity/add", request);
             
             var message = await responce.Content.ReadAsStringAsync();
             return message;

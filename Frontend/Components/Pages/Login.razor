@@ -95,7 +95,7 @@
             new KeyValuePair<string, string>("password", password ?? "")
         });
 
-        var response = await Http.PostAsync("https://localhost:7224/api/my/login", content);
+        var response = await Http.PostAsync($"{ApiConstants.BaseUrl}/my/login", content);
 
         if (response.IsSuccessStatusCode)
         {
