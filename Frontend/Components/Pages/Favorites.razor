@@ -7,112 +7,128 @@
 @using System.Text.Json.Serialization
 
 <MudLayout>
-	<NavBar />
-	<MudMainContent Class="pa-4">
-		<h3>Your Favorite Cities</h3>
+    <NavBar />
+    <MudMainContent Class="pa-4">
+        <h3>Your Favorite Cities</h3>
 
-		@if (!Session.IsLoggedIn)
-		{
-			<MudText Color="Color.Error">Please log in to view your favorite cities.</MudText>
-		}
-		 @if (isLoading)
-		{
-			<MudProgressCircular Color="Color.Primary" Indeterminate="true" />
-			<p>Loading weather data...</p>
-		}
-		else if (weatherDataList.Count == 0)
-		{
-			<p>No favorite cities found or failed to fetch weather data.</p>
-		}
-		else
-		{
-			<MudTable Items="weatherDataList" Bordered="true" Striped="true" Hover="true">
-				<HeaderContent>
-					<MudTh>City</MudTh>
-					<MudTh>Temperature (°C)</MudTh>
-					<MudTh>Feels Like (°C)</MudTh>
-					<MudTh>Humidity (%)</MudTh>
-					<MudTh>Weather</MudTh>
-				</HeaderContent>
-				<RowTemplate>
-					<MudTd>@context.Name</MudTd>
-					<MudTd>@context.Main.Temp</MudTd>
-					<MudTd>@context.Main.FeelsLike</MudTd>
-					<MudTd>@context.Main.Humidity</MudTd>
-					<MudTd>@(context.Weather.FirstOrDefault()?.Description ?? "N/A")</MudTd>
-				</RowTemplate>
-			</MudTable>
-		}
-	</MudMainContent>
+        @if (!Session.IsLoggedIn)
+        {
+            <MudText Color="Color.Error">Please log in to view your favorite cities.</MudText>
+        }
+        else if (isLoadingCities)
+        {
+            <MudProgressCircular Color="Color.Primary" Indeterminate="true" />
+            <p>Loading favorite cities...</p>
+        }
+        else if (cities is null || cities.Count == 0)
+        {
+            <p>No favorite cities found.</p>
+        }
+        else
+        {
+            <MudTable Items="weatherDataList" Bordered="true" Striped="true" Hover="true">
+                <HeaderContent>
+                    <MudTh>City</MudTh>
+                    <MudTh>Temperature (°C)</MudTh>
+                    <MudTh>Feels Like (°C)</MudTh>
+                    <MudTh>Humidity (%)</MudTh>
+                    <MudTh>Weather</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd>@context.Name</MudTd>
+                    <MudTd>@context.Main.Temp</MudTd>
+                    <MudTd>@context.Main.FeelsLike</MudTd>
+                    <MudTd>@context.Main.Humidity</MudTd>
+                    <MudTd>@(context.Weather.FirstOrDefault()?.Description ?? "N/A")</MudTd>
+                </RowTemplate>
+            </MudTable>
+
+            @if (isLoadingWeather)
+            {
+                <MudProgressCircular Color="Color.Secondary" Indeterminate="true" />
+                <p>Fetching weather data...</p>
+            }
+        }
+    </MudMainContent>
 </MudLayout>
 
 @code {
-	private List<FavoriteCity>? cities;
-	private List<WeatherData> weatherDataList = new();
-	private bool isLoading = true;
+    private List<FavoriteCity>? cities;
+    private List<WeatherData> weatherDataList = new();
+    private bool isLoadingCities = true;
+    private bool isLoadingWeather = false;
 
-	protected override async Task OnInitializedAsync()
-	{
-		// Set loading state to true when page is loading
-		isLoading = true;
+    protected override async Task OnInitializedAsync()
+    {
+        if (!Session.IsLoggedIn)
+        {
+            isLoadingCities = false;
+            return;
+        }
 
-		if (!Session.IsLoggedIn)
-		{
-			isLoading = false;
-			return;
-		}
+        try
+        {
+            var request = new HttpRequestMessage(HttpMethod.Get, $"{ApiConstants.BaseUrl}/favoriteCity/list");
+            request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", Session.AccessToken);
+            var response = await Http.SendAsync(request);
 
-		try
-		{
-			var request = new HttpRequestMessage(HttpMethod.Get, $"{ApiConstants.BaseUrl}/favoriteCity/list");
-			request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", Session.AccessToken);
-			var response = await Http.SendAsync(request);
+            if (response.IsSuccessStatusCode)
+            {
+                cities = await response.Content.ReadFromJsonAsync<List<FavoriteCity>>();
+                cities?.Reverse();
+            }
+            else
+            {
+                Console.WriteLine("Failed to load favorite cities from backend.");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("Unexpected error loading cities: " + ex.Message);
+        }
 
-			if (response.IsSuccessStatusCode)
-			{
-				cities = await response.Content.ReadFromJsonAsync<List<FavoriteCity>>();
-				cities!.Reverse();
-				if (cities != null)
-				{
-					// Fetch weather data for each city
-					foreach (var city in cities)
-					{
-						var trimmedCity = city.CityName?.Trim();
+        isLoadingCities = false;
 
-						if (!string.IsNullOrWhiteSpace(trimmedCity))
-						{
-							try
-							{
-								var weather = await WeatherService.GetWeatherData(trimmedCity);
-								if (weather != null)
-									weatherDataList.Add(weather);
-							}
-							catch (Exception ex)
-							{
-								Console.WriteLine($"Failed to fetch weather for {trimmedCity}: {ex.Message}");
-							}
-						}
-					}
-				}
-			}
-			else
-			{
-				Console.WriteLine("Failed to load favorite cities from backend.");
-			}
-		}
-		catch (Exception ex)
-		{
-			Console.WriteLine("Unexpected error: " + ex.Message);
-		}
+        if (cities != null && cities.Count > 0)
+        {
+            isLoadingWeather = true;
 
-		// Set loading state to false after fetching data
-		isLoading = false;
-	}
+            var weatherTasks = new List<Task>();
 
-	public class FavoriteCity
-	{
-		[JsonPropertyName("city_name")]
-		public string? CityName { get; set; }
-	}
+            foreach (var city in cities)
+            {
+                var trimmedCity = city.CityName?.Trim();
+                if (!string.IsNullOrWhiteSpace(trimmedCity))
+                {
+                    weatherTasks.Add(LoadWeatherAsync(trimmedCity));
+                }
+            }
 
+            await Task.WhenAll(weatherTasks);
+            isLoadingWeather = false;
+        }
+    }
+
+    private async Task LoadWeatherAsync(string cityName)
+    {
+        try
+        {
+            var weather = await WeatherService.GetWeatherData(cityName);
+            if (weather != null)
+            {
+                weatherDataList.Add(weather);
+                await InvokeAsync(StateHasChanged); // update UI as each city is loaded
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Failed to fetch weather for {cityName}: {ex.Message}");
+        }
+    }
+
+    public class FavoriteCity
+    {
+        [JsonPropertyName("city_name")]
+        public string? CityName { get; set; }
+    }
 }

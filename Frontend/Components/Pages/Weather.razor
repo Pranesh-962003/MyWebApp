@@ -125,7 +125,7 @@ private async Task SearchCity()
         Http.DefaultRequestHeaders.Authorization =
             new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", Session.AccessToken);
 
-        var result = await Http.PostAsJsonAsync("/api/forecast/forecast", entries);
+        var result = await Http.PostAsJsonAsync($"{ApiConstants.BaseUrl}/forecast/forecast", entries);
 
         if (result.IsSuccessStatusCode)
         {
@@ -140,7 +140,7 @@ private async Task SearchCity()
         Http.DefaultRequestHeaders.Authorization =
             new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", Session.AccessToken);
 
-        var storedData = await Http.GetAsync("/api/forecast/getdata");
+        var storedData = await Http.GetAsync($"{ApiConstants.BaseUrl}/forecast/getdata");
 
         if (storedData.IsSuccessStatusCode)
         {
